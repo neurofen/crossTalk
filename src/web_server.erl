@@ -38,6 +38,14 @@ handle("/poll", Req) ->
 	 
   end;
 
+handle("/send", Req) ->
+  Params = Req:parse_qs(),
+  Sender = proplists:get_value("nick", Params),  
+  Addressee = proplists:get_value("to", Params),
+  Message = proplists:get_value("msg", Params),
+  mucc:send_message(Sender, Addressee, Message),
+  Req:respond({200, [{"Content-Type", "text/plain"}], ?OK});
+
 handle("/register", Req) ->
   Params = Req:parse_qs(),
   Nickname = proplists:get_value("nick", Params),
