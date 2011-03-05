@@ -2,4 +2,4 @@
 
 erlc -o ebin src/*.erl
 
-#Serl -pa ebin
+erl -pa ebin

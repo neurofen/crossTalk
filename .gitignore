@@ -1,2 +1,4 @@
 ebin/
 *.erl~
+build.sh~
+Mnesia.nonode@nohost/
