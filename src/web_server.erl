@@ -29,9 +29,10 @@ handle("/poll", Req) ->
       Messages ->
 	case length(Messages) == 0 of
 	   true ->
-		Req:respond({500, [{"Content-Type", "text/plain"}], <<"none">>};
+		Req:respond({500, [{"Content-Type", "text/plain"}], <<"none">>});
 	   false ->
-		Template = lists:fold(fun(_, Acc) -> ["~s~n" | Acc] end, [], Messages),
+		io:format("You're here!~p~n",[Messages]),
+		Template = lists:foldl(fun(_, Acc) -> ["~s~n" | Acc] end, [], Messages),
 		Req:respond({200, [{"Content-Type", "text/plain"}], subst(lists:flatten(Template),Messages)})
 	end
 	 
