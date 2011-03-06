@@ -25,17 +25,17 @@ handle("/poll", Req) ->
   Nickname = proplists:get_value("nick", Params),
   case mucc:poll(Nickname) of
       {error, Error} ->
-	Req:respond({500, [{"Content-Type", "text/plain"}], subst("Error: ~s~n", [Error])});
+		error(Req, subst("Error: ~s~n", Error));
+		
       Messages ->
-	case length(Messages) == 0 of
-	   true ->
-		Req:respond({500, [{"Content-Type", "text/plain"}], <<"none">>});
-	   false ->
-		io:format("You're here!~p~n",[Messages]),
-		Template = lists:foldl(fun(_, Acc) -> ["~s~n" | Acc] end, [], Messages),
-		Req:respond({200, [{"Content-Type", "text/plain"}], subst(lists:flatten(Template),Messages)})
-	end
-	 
+		case length(Messages) == 0 of
+		   true ->
+			success(Req, <<"none">>);
+		   false ->
+			io:format("You're here!~p~n",[Messages]),
+			Template = lists:foldl(fun(_, Acc) -> ["~s~n" | Acc] end, [], Messages),
+			success(Req, subst(lists:flatten(Template),Messages))
+		end	 
   end;
 
 handle("/send", Req) ->
@@ -44,16 +44,16 @@ handle("/send", Req) ->
   Addressee = proplists:get_value("to", Params),
   Message = proplists:get_value("msg", Params),
   mucc:send_message(Sender, Addressee, Message),
-  Req:respond({200, [{"Content-Type", "text/plain"}], ?OK});
+  success(Req, ?OK);
 
 handle("/register", Req) ->
   Params = Req:parse_qs(),
   Nickname = proplists:get_value("nick", Params),
   case mucc:register_nickname(Nickname) of
     ok ->
-      Req:respond({200, [{"Content-Type", "text/plain"}], ?OK});
+      success(Req, ?OK);
     Error ->
-      Req:respond({500, [{"Content-Type", "text/plain"}], subst("Error: ~s~n", [Error])})
+      error(Req, subst("Error: ~s~n", [Error]))
   end;
 
 handle(Unknown, Req) ->
@@ -75,3 +75,9 @@ clean_path(Path) ->
     N ->
       string:substr(Path, 1, string:len(Path) - (N +1))
   end.
+
+error(Req, Body) when is_binary(Body) ->
+  Req:respond({500, [{"Content-Type", "text/plain"}], Body}).
+
+success(Req, Body) when is_binary(Body) ->
+  Req:respond({200, [{"Content-Type", "text/plain"}], Body}).

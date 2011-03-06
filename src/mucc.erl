@@ -20,10 +20,16 @@ register_nickname(Nickname) ->
   global:send(?SERVER, {register, Nickname, self()}),
   receive
     ok ->
-	ok;
+		ok;
     {error, Error} ->
-	Error
+		Error
   end.
+
+%%----------------------------------------------------------------
+%% Unregister nickname with message_router
+%%----------------------------------------------------------------
+unregister_nickname(Nickname) ->
+  global:send(?SERVER, {unregister, Nickname}).
 
 %%----------------------------------------------------------------
 %% Poll for messages from message_router from a Nickname
@@ -47,40 +53,52 @@ send_message(Sender, Addressee, Message) ->
 server_loop(Proxies) ->
   receive
     {register, Nickname, Caller} ->
-	case dict:find(Nickname, Proxies) of
-	    error ->
-		  Pid = spawn(fun() -> proxy_client([]) end),
-		  message_router:register_nick(Nickname, Pid),
-		  Caller ! ok,
-		  server_loop(dict:store(Nickname, Pid, Proxies));
+		case dict:find(Nickname, Proxies) of
+		    error ->
+			  Pid = spawn(fun() -> 
+								process_flag(trap_exit, true),
+								proxy_client([]) end),
+			  erlang:monitor(process, Pid),
+			  message_router:register_nick(Nickname, Pid),
+			  Caller ! ok,
+			  server_loop(dict:store(Nickname, Pid, Proxies));
 
-	    {ok, _} ->
-		  Caller ! {error, duplicate_nickname_found},
-		  server_loop(Proxies)
-	end;
+		    {ok, _} ->
+			  Caller ! {error, duplicate_nickname_found},
+			  server_loop(Proxies)
+		end;
+		
+	{unregister, Nickname} ->
+		case dict:find(Nickname, Proxies) of
+			error ->
+				server_loop(Proxies);
+			{ok, Pid} ->
+				Pid ! stop,
+				server_loop(dict:erase(Nickname, Proxies))
+		end;
 
     {send_message, Sender, Addressee, Message} ->
-	case dict:find(Sender, Proxies) of
-	    error ->
-		  ok;
+		case dict:find(Sender, Proxies) of
+		    error ->
+			  ok;
 
-	    {ok, Pid} ->
-		  Pid ! {send_message, Addressee, Message}
-	end,
-	server_loop(Proxies);
+		    {ok, Pid} ->
+			  Pid ! {send_message, Addressee, Message}
+		end,
+		server_loop(Proxies);
 
     {poll, Nickname, Caller} ->
-	case dict:find(Nickname, Proxies) of
-	    error ->
-		Caller ! {error, unknown_nickname};
-	    {ok, Pid} ->
-		Pid ! {get_messages, self()},
-		receive
-		    {messages, Messages} ->
-			Caller ! {ok, Messages}
-		end
-	end,
-	server_loop(Proxies)
+		case dict:find(Nickname, Proxies) of
+		    error ->
+			Caller ! {error, unknown_nickname};
+		    {ok, Pid} ->
+			Pid ! {get_messages, self()},
+			receive
+			    {messages, Messages} ->
+					Caller ! {ok, Messages}
+			end
+		end,
+		server_loop(Proxies)
   end.
 
 %%----------------------------------------------------------------
@@ -92,12 +110,13 @@ proxy_client(Messages) ->
     {printmsg, MessageBody} ->
 	proxy_client([MessageBody|Messages]);
     {get_messages, Caller} ->
-	Caller ! {messages, lists:reverse(Messages)},
-	proxy_client([]);
+		Caller ! {messages, lists:reverse(Messages)},
+		proxy_client([]);
     {send_message, Addressee, Message} ->
-	message_router:send_chat_msg(Addressee, Message);
+		message_router:send_chat_msg(Addressee, Message),
+		proxy_client(Messages);
     stop ->
-	io:format("Proxy stopping ...~n"),
-	ok
+		io:format("Proxy stopping ...~n"),
+		ok
   end.
 
